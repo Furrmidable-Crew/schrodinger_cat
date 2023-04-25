@@ -1,4 +1,5 @@
 import time
+import difflib
 
 from langchain.chains.qa_with_sources import load_qa_with_sources_chain
 import threading
@@ -16,11 +17,47 @@ from langchain.chains import LLMChain
 from langchain.chains.question_answering import load_qa_chain
 from langchain.chains import AnalyzeDocumentChain
 from langchain.chains.summarize import load_summarize_chain
+from langchain import HuggingFaceHub
 
 
-class SchrodingerCat(PubMed):
+class WorkingMemory:
+    def __init__(self):
+        self.memories = []
+
+    def keep_in_mind(self, information):
+        if len(information) == 1:
+            self.memories.append(information[0])
+        else:
+            self.memories.extend(information)
+
+    def forget(self):
+        self.memories = []
+
+    def remember(self, ccat, source, **kwargs):
+        for m, mem in enumerate(self.memories):
+            _ = ccat.memory.vectors.declarative.add_texts(
+                [mem.page_content],
+                [
+                    {
+                        "source": source,
+                        "when": time.time(),
+                        "text": mem.page_content,
+                        **mem.metadata,
+                        **kwargs
+                    }
+                ],
+            )
+            log(f"Inserted into memory ({m + 1}/{len(mem)}):    {mem.page_content}")
+            time.sleep(0.1)
+
+
+class SchrodingerCat:
 
     def __init__(self, ccat):
+
+        # PyMed
+        self.pymed = PubMed(tool="schrodinger-cat", email="nicorb932@hotmail.com")
+
         # Download the loader
         pubmedreader = download_loader("PubmedReader")
 
@@ -35,7 +72,7 @@ class SchrodingerCat(PubMed):
         # Split the inputs
         multi_input = tool_input.split(",")
         log(multi_input)
-        # TODO: check max results is an integer as sometimes the Cat leave a quote
+        # TODO: check max results is an integer as sometimes the Cat leaves a quote
         # e.g. multi_input[1]= "1'" that can't be cast to int
         if len(multi_input) == 1:
             max_results = 1
@@ -46,21 +83,28 @@ class SchrodingerCat(PubMed):
 
         return query, max_results
 
-    @staticmethod
-    def __postprocess_docs(docs):
+    def __postprocess_docs(self, docs):
         # TODO: review how to define source
         for doc in docs:
-            if "Author" in doc.metadata.keys():
-                author = doc.metadata["author"]
-            if "Title of this paper" in doc.metadata.keys():
-                title = doc.metadata["Title of this paper"]
-            if "Journal it was published in" in doc.metadata.keys():
-                journal = doc.metadata["Journal it was published in"]
-            if "URL" in doc.metadata.keys():
-                url = doc.metadata["URL"]
-            source = f"{title}"
-            doc.metadata["source"] = source
-        return docs
+            query = f"{doc.metadata['Title of this paper']}[title]"
+
+            try:
+                result = next(self.pymed.query(query, max_results=1)).toDict()
+            except StopIteration:
+                doc.metadata['source'] = doc.metadata['Title of this paper']
+            else:
+                doc.metadata['keywords'] = result['keywords']
+                doc.metadata['journal'] = result['journal']
+                doc.metadata['authors'] = result['authors']
+                doc.metadata['doi'] = result['doi']
+
+                authors = [f"{result['authors'][i]['lastname']} {result['authors'][i]['initials']}."
+                           for i in range(len(result['authors']))]
+                full_authors = ",".join(authors)
+                doc.metadata['source'] = f"{full_authors}, {doc.metadata['Title of this paper']}, " \
+                                         f"{result['journal']}, URL: {result['url']}"
+            finally:
+                log(doc.metadata['source'])
 
     def __query(self, query: str, max_results: int = 1):
         # Get Documents from query
@@ -73,14 +117,11 @@ class SchrodingerCat(PubMed):
         langchain_documents = [d.to_langchain_format() for d in docs]
 
         # Postprocess retrieved docs
-        documents = self.__postprocess_docs(langchain_documents)
+        self.__postprocess_docs(langchain_documents)
 
-        # Store docs in Working Memory to further operations.
+        # Store docs in Working Memory for further operations.
         # e.g. filter docs
-        self.cat.working_memory.keep_in_mind(documents)
-
-        # Log info - to be deleted
-        log(self.cat.working_memory.memories[0].metadata["source"])
+        self.cat.working_memory.keep_in_mind(langchain_documents)
 
     def make_search(self, tool_input):
         # Split input in str and int
@@ -101,8 +142,8 @@ def simple_search(query: str, cat):
     Another example: 'Antibiotic,1' would be the input if only the query 'Antibiotic' is asked.
     To use this tool start the whole prompt with PUBMED: written in uppercase.
     Examples:
-         - PUBMED: Look for "Public Healthcare" and give me 3 results.' Input is 'Public Healthcare,3'
-         - PUBMED: Look for "Antibiotic resistance".' Input is 'Public Healthcare,1'
+         - PUBMED: Look for "Public Healthcare" and give me 3 results. Input is 'Public Healthcare,3'
+         - PUBMED: Look for "Antibiotic resistance". Input is 'Public Healthcare,1'
     """
 
     # Schrodinger Cat
@@ -136,17 +177,32 @@ def empty_working_memory(tool_input, cat):
 @tool()
 def query_working_memory(tool_input, cat):
     """
-    Useful to ask for reviewing a paper. The paper is a document in the Working Memory. Input is always None.
+    Useful to ask for a detailed summary of what's in the Cat's Working Memory. Input is always None.
+    Example:
+        - What's in your memory?
+        - Tell me the papers you have currently in memory
     """
     # TODO return detailed info about what's in the Working Memory
     # Notes: as llama_index doesn't give much details about the papers,
-    # we can use the titles to query individual papers with pymed and retrieved all the info
+    # we can use the titles to query individual papers with pymed and retrieve all the info
     # (authors, affiliation, citations?, journal, url, etc.,
     # then format the output expecting user to ask for more info about a specific paper
-    return "ciao"
+    memories = cat.working_memory.memories
+
+    n_memories = len(memories)
+
+    if n_memories == 0:
+        return memories  # cat.llm("Tell that you memory is empty")
+
+    prefix = f"Currently I have {len(memories)} papers temporarily loaded in memory.\nHere is the list:\n"
+    papers = ""
+    suffix = "\nShall I save any of them permanently or do you want me to explain any of these?"
+    for m in memories:
+        papers += f"- {m.metadata['source']}\n"
+    return prefix + papers + suffix
 
 
-@tool
+@tool(return_direct=True)
 def explain_paper(tool_input, cat):
     """
     Useful to have a paper explained in a systematic way.
@@ -176,7 +232,7 @@ def explain_paper(tool_input, cat):
         return "I don't have the paper you queried for"
 
     # Text splitter (big chunks good idea?)
-    text_splitter = RecursiveCharacterTextSplitter(chunk_size=3000, chunk_overlap=1500,
+    text_splitter = RecursiveCharacterTextSplitter(chunk_size=3000, chunk_overlap=500,
                                                    separators=["\\n\\n", "\n\n", ".\\n", ".\n", "\\n", "\n", " ", ""])
 
     # Split the document
@@ -190,15 +246,15 @@ def explain_paper(tool_input, cat):
     # Questions from 'Carey MA, Steiner KL, Petri WA Jr. Ten simple rules for reading a scientific paper'
     questions = [
         'What do the authors want to know? What is the motivation?',
-        'What did they do? What is the approach/methods?',
-        'Why was it done that way? Which is the context within the field of research?',
+        'What did the authors do? What is the approach/methods?',
+        'Why was the approach done that way? Which is the context within the field of research?',
         'What do the results show?',
         'How did the authors interpret the results? Which is their discussion?',
         'What should be done next? The authors may provide some suggestions in the discussion'
     ]
 
     # Summarize with refine because most lossless chain
-    chain = load_summarize_chain(cat.llm, chain_type="refine")
+    chain = load_summarize_chain(cat.llm, chain_type="stuff")
 
     # Summarize
     summaries = [chain.run([d]) for d in docs]
@@ -209,11 +265,33 @@ def explain_paper(tool_input, cat):
     # Make document from summaries - metadata?
     s = [Document(page_content=ss) for ss in summaries]
 
+    # llm = HuggingFaceHub(repo_id='microsoft/BioGPT-Large-PubMedQA',
+    #                      huggingfacehub_api_token='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')
+
     # Question & Answer chain
     # TODO two refine takes ages, test stuff in q&a
-    qa_chain = load_qa_chain(cat.llm, chain_type="refine")  # cambia chain type
+    qa_chain = load_qa_chain(cat.llm, chain_type="stuff")  # cambia chain type
 
     # Gather answers
-    answers = [qa_chain({"input_documents": s, "question": q}, return_only_outputs=True) for q in questions]
+    answers = [qa_chain({"input_documents": s, "question": q}) for q in questions]
     log(answers)
+    if 'authors' in paper.metadata.keys():
+        authors = [f"{paper.metadata['authors'][i]['lastname']} {paper.metadata['authors'][i]['initials']}."
+                   for i in range(len(paper.metadata['authors']))]
+        full_authors = ",".join(authors)
+        prefix = f"## {paper.metadata['Title of this paper']}\n### {full_authors}\n\n"
+    else:
+        prefix = f"## {paper.metadata['Title of this paper']}\n\n"
+
+    if 'doi' in paper.metadata.keys():
+        suffix = f"URL:[{paper.metadata['url']}]({{paper.metadata['url']}})"
+    else:
+        suffix = ""
+
+    body = ""
+    for q, a in zip(questions, answers):
+        body += f"**{q}**\n{a['output_text']}\n\n"
+
+    return prefix + body + suffix
+
 
