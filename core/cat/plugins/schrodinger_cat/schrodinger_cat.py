@@ -1,23 +1,14 @@
 import time
-import difflib
 
-from langchain.chains.qa_with_sources import load_qa_with_sources_chain
 import threading
 from llama_index import download_loader
 from pymed import PubMed
-from langchain.text_splitter import CharacterTextSplitter
-from langchain.text_splitter import RecursiveCharacterTextSplitter, TextSplitter
-from langchain.prompts import PromptTemplate
+from langchain.text_splitter import RecursiveCharacterTextSplitter
 from cat.utils import log
 from cat.mad_hatter.decorators import tool, hook
 from langchain.docstore.document import Document
-from langchain.output_parsers import RegexParser
-from langchain.chains import SequentialChain
-from langchain.chains import LLMChain
 from langchain.chains.question_answering import load_qa_chain
-from langchain.chains import AnalyzeDocumentChain
 from langchain.chains.summarize import load_summarize_chain
-from langchain import HuggingFaceHub
 
 
 class WorkingMemory:
@@ -66,6 +57,9 @@ class SchrodingerCat:
 
         # Cheshire Cat
         self.cat = ccat
+
+        # Working Memory
+        self.working_memory = WorkingMemory()
 
     @staticmethod
     def parse_query(tool_input):
@@ -121,7 +115,7 @@ class SchrodingerCat:
 
         # Store docs in Working Memory for further operations.
         # e.g. filter docs
-        self.cat.working_memory.keep_in_mind(langchain_documents)
+        self.working_memory.keep_in_mind(langchain_documents)
 
     def make_search(self, tool_input):
         # Split input in str and int
@@ -165,9 +159,11 @@ def empty_working_memory(tool_input, cat):
     """
     Useful to empty and forget all the documents in the Working Memory. Input is always None.
     """
+    # Schrodinger Cat
+    scat = SchrodingerCat(cat)
 
     # Empty working memory
-    cat.working_memory.forget()
+    scat.working_memory.forget()
 
     # TODO: this has to be tested
     # the idea is having the Cat answer without directly returning a hard coded output string
@@ -182,12 +178,11 @@ def query_working_memory(tool_input, cat):
         - What's in your memory?
         - Tell me the papers you have currently in memory
     """
-    # TODO return detailed info about what's in the Working Memory
-    # Notes: as llama_index doesn't give much details about the papers,
-    # we can use the titles to query individual papers with pymed and retrieve all the info
-    # (authors, affiliation, citations?, journal, url, etc.,
-    # then format the output expecting user to ask for more info about a specific paper
-    memories = cat.working_memory.memories
+    # Schrodinger Cat
+    scat = SchrodingerCat(cat)
+
+    # Memories in Working Memory
+    memories = scat.working_memory.memories
 
     n_memories = len(memories)
 
@@ -211,11 +206,14 @@ def explain_paper(tool_input, cat):
     Input to this tool is the title of a paper.
     """
 
+    # Schrodinger Cat
+    scat = SchrodingerCat(cat)
+
     # Set paper to none
     paper = None
 
     # Look for the Title of the paper in Working Memory
-    for m in cat.working_memory.memories:
+    for m in scat.working_memory.memories:
         if m.metadata['Title of this paper'] == tool_input:
             paper = m
 
