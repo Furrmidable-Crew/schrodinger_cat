@@ -47,7 +47,7 @@ class SchrodingerCat:
     def __init__(self, ccat):
 
         # PyMed
-        self.pymed = PubMed(tool="schrodinger-cat", email="nicorb932@hotmail.com")
+        self.pymed = PubMed(tool="my-tool", email="myemail@email.com")
 
         # Download the loader
         pubmedreader = download_loader("PubmedReader")
@@ -252,7 +252,7 @@ def explain_paper(tool_input, cat):
     ]
 
     # Summarize with refine because most lossless chain
-    chain = load_summarize_chain(cat.llm, chain_type="stuff")
+    chain = load_summarize_chain(cat.llm, chain_type="refine")
 
     # Summarize
     summaries = [chain.run([d]) for d in docs]
