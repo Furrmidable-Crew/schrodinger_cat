@@ -47,7 +47,7 @@ class SchrodingerCat:
     def __init__(self, ccat):
 
         # PyMed
-        self.pymed = PubMed(tool="mytool", email="myemail@email.com")
+        self.pymed = PubMed(tool="my-tool", email="myemail@email.com")
 
         # Download the loader
         pubmedreader = download_loader("PubmedReader")
