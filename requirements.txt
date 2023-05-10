@@ -16,4 +16,3 @@ pdfminer.six==20221105
 unstructured==0.5.7
 tiktoken==0.3.3
 pymed==0.8.9
-llama_index==0.5.15
