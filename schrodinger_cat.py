@@ -148,8 +148,8 @@ def summary_working_memory(tool_input, cat):
     papers = ""
     for m in memories:
         papers += f"{m}\n"
-
     log(papers)
+
     return prefix + papers
 
 
