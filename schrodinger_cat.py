@@ -7,6 +7,8 @@ from langchain.docstore.document import Document
 from langchain.chains.question_answering import load_qa_chain
 from langchain.chains.summarize import load_summarize_chain
 
+from transformers import AutoTokenizer, OPTForCausalLM
+
 
 class SchrodingerCat:
 
@@ -20,27 +22,56 @@ class SchrodingerCat:
 
     @staticmethod
     def parse_query(tool_input):
+
         # Split the inputs
         multi_input = tool_input.split(",")
         log(multi_input)
-        # TODO: check max results is an integer as sometimes the Cat leaves a quote
-        # e.g. multi_input[1]= "1'" that can't be cast to int
-        if len(multi_input) == 1:
-            max_results = 1
-            query = f"{multi_input}[Title]"
-        else:
+
+        # Cast max_results to int
+        try:
             max_results = int(multi_input[1])
-            query = f"{multi_input[0]}[Title]"
+        except ValueError:
+            # If the model leave a quote remove it
+            max_results = int(multi_input[1].strip("'"))
+
+        # Query for PubMed
+        query = f"{multi_input[0]}[Title]"
 
         return query, max_results
 
+    def parse_results(self, results):
+        cleaned = []
+
+        # Loop all results
+        for result in results:
+            # TODO check that results is not empty
+            string = ""
+
+            # Make Dict
+            r = result.toDict()
+
+            # Drop useless keys
+            r.pop("xml")
+            r.pop("pubmed_id")
+
+            # Loop keys
+            for key in r.keys():
+
+                # Make a string
+                string += f"**{key}**: {r[key]}\n"
+
+        cleaned.append(string)
+
+        return cleaned
+
     def __query(self, query: str, max_results: int = 1):
+
         # Query PubMed
         results = self.pymed.query(query=query, max_results=max_results)
 
         # Store docs in Working Memory for further operations.
         # e.g. filter docs
-        self.cat.working_memory["pubmed_results"] = [i.toDict() for i in results]
+        self.cat.working_memory["pubmed_results"] = self.parse_results(results)
 
     def make_search(self, tool_input):
         # Split input in str and int
@@ -73,30 +104,31 @@ def simple_search(query: str, cat):
 
     # TODO: change this output
     out = f"Alright. I'm looking for {schrodinger_cat.parse_query(query)[1]} results about" \
-          f" {schrodinger_cat.parse_query(query)[0]} on PubMed. This may take some time. " \
+          f" {schrodinger_cat.parse_query(query)[0].strip('[Title]')} on PubMed. This may take some time. " \
           f"Hang on please, I'll tell you when I'm done"
 
     return out
 
 
-@tool(return_direct=True)
+@tool()
 def empty_working_memory(tool_input, cat):
     """
     Useful to empty and forget all the documents in the Working Memory. Input is always None.
     """
-    cat.working_memory.pop("pubmed_results")
+    if "pubmed_results" in cat.working_memory:
+        cat.working_memory.pop("pubmed_results")
 
     # TODO: this has to be tested
     # the idea is having the Cat answer without directly returning a hard coded output string
-    return cat.llm("Can you please forget everything I asked you to keep in mind?")
+    return cat.llm("Can you forget everything I asked you to keep in mind?")
 
 
-@tool()
-def query_working_memory(tool_input, cat):
+@tool(return_direct=True)
+def summary_working_memory(tool_input, cat):
     """
     Useful to ask for a detailed summary of what's in the Cat's Working Memory. Input is always None.
     Example:
-        - What's in your memory?
+        - What's in your memory? -> use summary_working_memory tool
         - Tell me the papers you have currently in memory
     """
     # Memories in Working Memory
@@ -110,14 +142,35 @@ def query_working_memory(tool_input, cat):
         n_memories = 0
 
     if n_memories == 0:
-        return memories  # cat.llm("Tell that you memory is empty")
+        return cat.llm("Say that you memory is empty")
 
-    prefix = f"Currently I have {n_memories} papers temporarily loaded in memory.\nHere is the list:\n"
+    prefix = f"Currently I have {n_memories} papers temporarily loaded in memory.\n"
     papers = ""
-    suffix = "\nShall I save any of them permanently or do you want me to explain any of these?"
     for m in memories:
-        papers += f"- {m['title']}\n"
-    return prefix + papers + suffix
+        papers += f"{m}\n"
+
+    log(papers)
+    return prefix + papers
+
+
+# @tool
+# def query_memory(tool_input, cat):
+#     """
+#     Useful to query the currently stored paper about a specific question. Input is a string with a question.
+#     """
+#     tokenizer = AutoTokenizer.from_pretrained("facebook/galactica-1.3b")
+#     model = OPTForCausalLM.from_pretrained("facebook/galactica-1.3b")
+#
+#     if "pubmed_results" in cat.working_memory.keys():
+#         memories = cat.working_memory["pubmed_results"]
+#
+#     input_text = tool_input + memories + " [START_REF]"
+#     input_ids = tokenizer(input_text, return_tensors="pt").input_ids
+#
+#     outputs = model.generate(input_ids)
+#     log(tokenizer.decode(outputs[0]))
+#
+#     return tokenizer.decode(outputs[0])
 
 
 # @tool(return_direct=True)
