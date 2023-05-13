@@ -7,8 +7,6 @@ from langchain.docstore.document import Document
 from langchain.chains.question_answering import load_qa_chain
 from langchain.chains.summarize import load_summarize_chain
 
-from transformers import AutoTokenizer, OPTForCausalLM
-
 
 class SchrodingerCat:
 
@@ -39,13 +37,12 @@ class SchrodingerCat:
 
         return query, max_results
 
-    def parse_results(self, results):
+    @staticmethod
+    def parse_results(results):
         cleaned = []
 
         # Loop all results
         for result in results:
-            # TODO check that results is not empty
-            string = ""
 
             # Make Dict
             r = result.toDict()
@@ -54,13 +51,7 @@ class SchrodingerCat:
             r.pop("xml")
             r.pop("pubmed_id")
 
-            # Loop keys
-            for key in r.keys():
-
-                # Make a string
-                string += f"**{key}**: {r[key]}\n"
-
-        cleaned.append(string)
+            cleaned.append(r)
 
         return cleaned
 
@@ -151,6 +142,26 @@ def summary_working_memory(tool_input, cat):
     log(papers)
 
     return prefix + papers
+
+
+@tool
+def include_paper(tool_input, cat):
+    """
+    Useful to ask a question about the abstracts retrieved and saved in the working memory.
+    The Input is a question wrapped in double quotes.
+    """
+
+    # Get abstracts
+    if "pubmed_results" in cat.working_memory.keys():
+        abstracts = [f"Title: {m['title']}\nAbstract: {m['abstract']}" for m in cat.working_memory["pubmed_results"]]
+
+        abstracts = [Document(page_content=a) for a in abstracts]
+
+        chain = load_qa_chain(cat.llm, chain_type="refine")
+        answer = chain.run(input_documents=abstracts, question=tool_input)
+        log(answer)
+
+    return answer
 
 
 # @tool
