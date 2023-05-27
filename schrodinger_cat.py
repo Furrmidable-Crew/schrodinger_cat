@@ -15,7 +15,7 @@ class SchrodingerCat:
         # PyMed
         self.pymed = PubMed(tool="mytool", email="myemail@email.com")
 
-        # Cheshire Cat
+        # cheshire_cat
         self.cat = ccat
 
     @staticmethod

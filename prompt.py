@@ -36,7 +36,7 @@ def get_hypothetical_embedding_prompt(cat):
     hyde_prompt = """You will be given a sentence.
 If the sentence asks to query PubMed execute the task and report detailed information of the search results.
 If the sentence asks more detailed information of something, dig deeper and exhaust the question.
-If the sentence asks to summarize something, answer concisely underling the most important parts. 
+If the sentence asks to summarize something, answer concisely underling the most important parts.
 
 Sentence: {input}
 
