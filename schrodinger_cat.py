@@ -1,11 +1,8 @@
 import threading
 from pymed import PubMed
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-from cat.utils import log
 from cat.mad_hatter.decorators import tool, hook
 from langchain.docstore.document import Document
 from langchain.chains.question_answering import load_qa_chain
-from langchain.chains.summarize import load_summarize_chain
 
 
 class SchrodingerCat:
@@ -23,7 +20,6 @@ class SchrodingerCat:
 
         # Split the inputs
         multi_input = tool_input.split(",")
-        log(multi_input)
 
         # Cast max_results to int
         try:
@@ -139,7 +135,6 @@ def summary_working_memory(tool_input, cat):
     papers = ""
     for m in memories:
         papers += f"{m}\n"
-    log(papers)
 
     return prefix + papers
 
@@ -159,7 +154,6 @@ def include_paper(tool_input, cat):
 
         chain = load_qa_chain(cat.llm, chain_type="refine")
         answer = chain.run(input_documents=abstracts, question=tool_input)
-        log(answer)
 
     return answer
 
