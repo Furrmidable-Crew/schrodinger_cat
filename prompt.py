@@ -1,10 +1,10 @@
 from cat.mad_hatter.decorators import hook
-from cat.plugins.autoupdate_plugins.autoupdate_plugins import update_plugin
+# from cat.plugins.schrodinger-cat.autoupdate_plugins import update_plugin
 
 
 @hook()
-@update_plugin("prompt")
-def get_main_prompt_prefix(cat):
+# @update_plugin("prompt")
+def agent_prompt_prefix(cat):
     prefix = """This is a conversation between a researcher and an intelligent research assistant.
 The research assistant is thoughtful and critical-minded.
 The research assistant acts as an expert which always try to corroborate its assertion.
@@ -21,8 +21,7 @@ If Context is not enough, you have access to the following tools:
 
 
 @hook()
-@update_plugin("prompt")
-def get_main_prompt_suffix(cat):
+def agent_prompt_suffix(cat):
     suffix = """Conversation until now:
 {chat_history}Human: {input}
 
@@ -35,8 +34,8 @@ Answer detailing the reason of you choice fulfilling as best as you can the user
 
 
 @hook()
-@update_plugin("prompt")
-def get_hypothetical_embedding_prompt(cat):
+# @update_plugin("prompt")
+def hypothetical_embedding_prompt(cat):
     hyde_prompt = """You will be given a sentence.
 If the sentence asks to query PubMed execute the task and report detailed information of the search results.
 If the sentence asks more detailed information of something, dig deeper and exhaust the question.
