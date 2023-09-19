@@ -1,11 +1,7 @@
 # The Schrödinger Cat
 ## AI research assistant to query PubMed
 
-### Introduction
-This is an open-source plugin for the [Cheshire Cat](https://github.com/pieroit/cheshire-cat) AI framework.
-
-Currently supported functions:
-- The code is undergoing a heavy refactoring
+This plugin is outdated. Help needed, please.
 
 [//]: # (- :mag: look for specific queries on PubMed and specify the number of results you want;)
 
